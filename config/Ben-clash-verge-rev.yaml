@@ -1,0 +1,529 @@
+mixed-port: 7890
+#---------------------------------------------------#
+## Clash Verge Rev + WireGuard 优化配置
+## 更新：2025-08-08
+## 特性：
+## 1. Clash Meta 内核原生 WireGuard 支持（无需系统 WireGuard）
+## 2. 完整 AI 服务覆盖（Claude/ChatGPT/Gemini/Perplexity）
+## 3. DNS 防污染 + fake-ip 模式
+## 4. 智能分流：国内直连，境外代理
+#---------------------------------------------------#
+
+# Clash Meta 内核配置
+unified-delay: true
+tcp-concurrent: true
+keep-alive-interval: 30
+
+# Linux 和 macOS 的 redir 代理端口
+redir-port: 7892
+
+# 允许局域网的连接（生产环境建议保持 false）
+allow-lan: false
+
+# 规则模式：Rule（规则） / Global（全局代理）/ Direct（全局直连）
+mode: rule
+
+# 优化日志级别（减少资源占用）
+log-level: silent
+
+# Clash 的 RESTful API
+external-controller: '127.0.0.1:9090'
+
+# RESTful API 的口令
+secret: ''
+
+# IPv6 支持
+ipv6: true
+
+# 实验性特性
+experimental:
+  ignore-resolve-fail: true
+
+# TUN 模式配置（核心配置 - 2025 优化版）
+tun:
+  enable: true
+  stack: system    # 推荐使用 system 协议栈以获得最佳性能
+  dns-hijack:
+    - any:53       # 劫持所有 DNS 请求
+  auto-route: true # 自动配置路由表
+  auto-detect-interface: true # 自动检测网络接口
+  strict-route: true # 严格路由模式，提高安全性
+  mtu: 9000      # 优化 MTU 设置
+  gso: false     # 关闭 GSO 以提高兼容性
+  gso-max-size: 65536
+
+# DNS 配置（2025 防污染优化版）
+dns:
+  enable: true
+  ipv6: true
+  listen: '0.0.0.0:53'
+  use-hosts: true
+  enhanced-mode: fake-ip  # 使用 fake-ip 模式防止 DNS 泄露
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter:
+    - "*.lan"
+    - "*.localdomain"
+    - "*.example"
+    - "*.invalid"
+    - "*.localhost"
+    - "*.test"
+    - "*.local"
+    - "*.home.arpa"
+    - "time.*.com"
+    - "time.*.gov"
+    - "time.*.edu.cn"
+    - "time.*.apple.com"
+    - "time1.*.com"
+    - "time2.*.com"
+    - "time3.*.com"
+    - "time4.*.com"
+    - "time5.*.com"
+    - "time6.*.com"
+    - "time7.*.com"
+    - "ntp.*.com"
+    - "ntp1.*.com"
+    - "ntp2.*.com"
+    - "ntp3.*.com"
+    - "ntp4.*.com"
+    - "ntp5.*.com"
+    - "ntp6.*.com"
+    - "ntp7.*.com"
+    - "*.time.edu.cn"
+    - "*.ntp.org.cn"
+    - "+.pool.ntp.org"
+    - "time1.cloud.tencent.com"
+  default-nameserver:
+    - 223.5.5.5
+    - 223.6.6.6
+    - 119.29.29.29
+  nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+    - https://1.12.12.12/dns-query
+  fallback:
+    - https://1.1.1.1/dns-query
+    - https://dns.cloudflare.com/dns-query
+    - https://8.8.8.8/dns-query
+    - tls://8.8.4.4:853
+    - tls://1.0.0.1:853
+  fallback-filter:
+    geoip: true
+    geoip-code: CN
+    geosite:
+      - gfw
+    ipcidr:
+      - 240.0.0.0/4
+      - 0.0.0.0/32
+    domain:
+      - '+.google.com'
+      - '+.facebook.com'
+      - '+.youtube.com'
+      - '+.githubusercontent.com'
+  nameserver-policy:
+    'geosite:cn': [https://doh.pub/dns-query, https://dns.alidns.com/dns-query]
+    'geosite:gfw,geolocation-!cn': [https://dns.cloudflare.com/dns-query, https://8.8.8.8/dns-query]
+
+# Sniffer 流量嗅探（Clash Meta 新特性）
+sniffer:
+  enable: true
+  sniff:
+    TLS:
+      ports: [443, 8443]
+    HTTP:
+      ports: [80, 8080-8880]
+      override-destination: true
+  skip-domain:
+    - 'Mijia Cloud'
+    - 'dlg.io.mi.com'
+    - '+.push.apple.com'
+
+# GeoData 配置
+geodata-mode: true
+geox-url:
+  geoip: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geoip.db"
+  geosite: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/geosite.db"
+  mmdb: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@sing/geo/country.mmdb"
+
+# 代理节点配置
+proxies:
+  # WireGuard 代理 - Clash Meta 内核原生支持
+  - name: "WireGuard-VPN"
+    type: wireguard
+    server: 47.245.52.204
+    port: 58888
+    ip: 10.88.88.2
+    ipv6: ""
+    private-key: "kOagDKvbXzX7a1SRYwoqmXef2NusyVQBv27BQv0Pamc="
+    public-key: "1Ohas3uFvO/RaUaBNBWcYsI0yu+zMYqCWUUzR/hclSI="
+    # allowed-ips: ['0.0.0.0/0', '::/0']  # 可选：启用全局代理
+    reserved: [0, 0, 0]
+    udp: true
+    mtu: 1280
+    
+  # 直连选项
+  - name: "DIRECT-CN"
+    type: direct
+
+proxy-providers:
+  FF:
+    type: http
+    path: ./profiles/FF.yaml
+    url: "https://www.yhc1314dy.link/api/v1/client/subscribe?token=e346876557e7e276980ad35c76d07f50"
+    interval: 300
+    health-check:
+      enable: true
+      url: "https://cp.cloudflare.com/generate_204"  # 2025年推荐的测试URL
+      interval: 300
+      timeout: 5000
+      lazy: true
+
+  FF新加坡:
+    type: file
+    path: ./profiles/FF.yaml
+    interval: 300
+    health-check:
+      enable: true
+      url: "https://cp.cloudflare.com/generate_204"
+      interval: 300
+      timeout: 5000
+      lazy: true
+    filter: 新加坡
+
+  FF日本:
+    type: file
+    path: ./profiles/FF.yaml
+    interval: 300
+    health-check:
+      enable: true
+      url: "https://cp.cloudflare.com/generate_204"
+      interval: 300
+      timeout: 5000
+      lazy: true
+    filter: 日本
+
+proxy-groups:
+  # 主代理选择组
+  - name: 代理选择
+    type: select
+    proxies:
+      - WireGuard模式
+      - FireFly
+      - 故障转移
+      - DIRECT
+
+  # WireGuard 专用组
+  - name: WireGuard模式
+    type: select
+    proxies:
+      - WireGuard-VPN   # Clash Meta 原生 WireGuard
+      - DIRECT
+      
+  # FireFly 服务代理组
+  - name: FireFly
+    type: select
+    proxies:
+      - 自动选择
+      - WireGuard模式
+      - 故障转移
+      - 手动选择
+      
+  - name: 自动选择
+    type: url-test
+    url: 'https://cp.cloudflare.com/generate_204'  # 2025年推荐的测试URL
+    interval: 300
+    timeout: 5000
+    tolerance: 100
+    lazy: true
+    use:
+      - FF新加坡
+      - FF日本
+
+  - name: 故障转移
+    type: fallback
+    url: 'https://cp.cloudflare.com/generate_204'
+    interval: 600
+    timeout: 5000
+    lazy: true
+    use:
+      - FF新加坡
+      - FF日本
+
+  - name: 查看节点
+    type: select
+    use:
+      - FF新加坡
+      - FF日本
+
+  - name: 手动选择
+    type: select
+    use:
+      - FF
+
+rule-providers:
+  reject:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/reject.txt"
+    path: ./ruleset/reject.yaml
+    interval: 86400
+
+  icloud:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/icloud.txt"
+    path: ./ruleset/icloud.yaml
+    interval: 86400
+
+  apple:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/apple.txt"
+    path: ./ruleset/apple.yaml
+    interval: 86400
+
+  google:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/google.txt"
+    path: ./ruleset/google.yaml
+    interval: 86400
+
+  tiktok:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/TikTok/TikTok.yaml"
+    path: ./ruleset/tiktok.yaml
+    interval: 86400
+
+  proxy:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/proxy.txt"
+    path: ./ruleset/proxy.yaml
+    interval: 86400
+
+  direct:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/direct.txt"
+    path: ./ruleset/direct.yaml
+    interval: 86400
+
+  private:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/private.txt"
+    path: ./ruleset/private.yaml
+    interval: 86400
+
+  gfw:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/gfw.txt"
+    path: ./ruleset/gfw.yaml
+    interval: 86400
+
+  greatfire:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/greatfire.txt"
+    path: ./ruleset/greatfire.yaml
+    interval: 86400
+
+  tld-not-cn:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/tld-not-cn.txt"
+    path: ./ruleset/tld-not-cn.yaml
+    interval: 86400
+
+  telegramcidr:
+    type: http
+    behavior: ipcidr
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/telegramcidr.txt"
+    path: ./ruleset/telegramcidr.yaml
+    interval: 86400
+
+  cncidr:
+    type: http
+    behavior: ipcidr
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/cncidr.txt"
+    path: ./ruleset/cncidr.yaml
+    interval: 86400
+
+  lancidr:
+    type: http
+    behavior: ipcidr
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/lancidr.txt"
+    path: ./ruleset/lancidr.yaml
+    interval: 86400
+
+  applications:
+    type: http
+    behavior: classical
+    url: "https://cdn.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/applications.txt"
+    path: ./ruleset/applications.yaml
+    interval: 86400
+
+  # 2025 AI 服务专用规则集
+  ai-services:
+    type: http
+    behavior: domain
+    url: "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/OpenAI/OpenAI.yaml"
+    path: ./ruleset/ai-services.yaml
+    interval: 86400
+
+  # Cloudflare IP 段规则集（很多 AI 服务使用）
+  cloudflare-cidr:
+    type: http
+    behavior: ipcidr
+    url: "https://cdn.jsdelivr.net/gh/blackmatrix7/ios_rule_script@master/rule/Clash/Cloudflare/Cloudflare_IP.yaml"
+    path: ./ruleset/cloudflare-cidr.yaml
+    interval: 86400
+
+rules:
+  # WireGuard 专用规则（优先级最高）
+  - IP-CIDR,10.88.88.0/24,DIRECT  # WireGuard 内网直连
+  
+  # 基础规则
+  - RULE-SET,applications,DIRECT
+  - DOMAIN,clash.razord.top,DIRECT
+  - DOMAIN,yacd.haishan.me,DIRECT
+  - RULE-SET,private,DIRECT
+  # - RULE-SET,reject,REJECT # 暂不屏蔽广告
+  - RULE-SET,icloud,DIRECT
+  - RULE-SET,apple,DIRECT
+  
+  # AI 服务优先级规则（确保完全覆盖 warp_includes.md）
+  - RULE-SET,ai-services,FireFly
+  - RULE-SET,cloudflare-cidr,FireFly
+  
+  # 基于地理位置的智能分流（Clash Verge Rev 推荐）
+  - GEOSITE,github,FireFly
+  - GEOSITE,twitter,FireFly
+  - GEOSITE,youtube,FireFly
+  - GEOSITE,google,FireFly
+  - GEOSITE,telegram,FireFly
+  - GEOSITE,netflix,FireFly
+  - GEOSITE,spotify,FireFly
+  - GEOSITE,facebook,FireFly
+  - GEOSITE,instagram,FireFly
+  - GEOSITE,whatsapp,FireFly
+  
+  # 境外服务走 FireFly 代理组
+  - RULE-SET,google,FireFly
+  - RULE-SET,telegramcidr,FireFly
+  - RULE-SET,tiktok,FireFly
+  - RULE-SET,proxy,FireFly
+  - RULE-SET,gfw,FireFly
+  - RULE-SET,greatfire,FireFly
+  - RULE-SET,tld-not-cn,FireFly
+  
+  # 国内直连
+  - RULE-SET,direct,DIRECT
+  - RULE-SET,lancidr,DIRECT
+  - RULE-SET,cncidr,DIRECT
+  - GEOIP,LAN,DIRECT
+  - GEOIP,CN,DIRECT
+  
+  # 自定义规则
+  # develop
+  - DOMAIN-SUFFIX,eastmoney.com,DIRECT
+  # gov
+  - DOMAIN-SUFFIX,gov.cn,DIRECT
+  - DOMAIN-SUFFIX,cn,DIRECT
+  # coffee
+  - DOMAIN-SUFFIX,captive.apple.com,DIRECT
+  - DOMAIN-SUFFIX,_dns.resolver.arpa,DIRECT
+  - DOMAIN-SUFFIX,wiwide.com,DIRECT
+  - DOMAIN-SUFFIX,arubanetworks.com,DIRECT
+  # figma
+  - DOMAIN-SUFFIX,figma.com,DIRECT
+  
+  # AI 服务完整覆盖（基于 warp_includes.md 2025版）
+  # OpenAI/ChatGPT 全套域名
+  - DOMAIN-SUFFIX,openai.com,FireFly
+  - DOMAIN-SUFFIX,api.openai.com,FireFly
+  - DOMAIN-SUFFIX,auth0.openai.com,FireFly
+  - DOMAIN-SUFFIX,chat.openai.com,FireFly
+  - DOMAIN-SUFFIX,cdn.openai.com,FireFly
+  - DOMAIN-SUFFIX,chatgpt.com,FireFly
+  - DOMAIN-SUFFIX,openaiassets.com,FireFly
+  - DOMAIN-SUFFIX,openai-public.azureedge.net,FireFly
+  - DOMAIN-SUFFIX,openai-public.azure.com,FireFly
+  - DOMAIN-SUFFIX,pay.openai.com,FireFly
+  - DOMAIN-SUFFIX,platform.openai.com,FireFly
+  
+  # Anthropic/Claude 全套域名和 IP 段
+  - DOMAIN-SUFFIX,claude.ai,FireFly
+  - DOMAIN-SUFFIX,api.anthropic.com,FireFly
+  - DOMAIN-SUFFIX,console.anthropic.com,FireFly
+  - IP-CIDR,172.64.0.0/13,FireFly,no-resolve
+  - IP-CIDR,162.159.0.0/16,FireFly,no-resolve
+  - IP-CIDR,104.18.0.0/16,FireFly,no-resolve
+  
+  # Google Gemini 全套域名
+  - DOMAIN-SUFFIX,gemini.google.com,FireFly
+  - DOMAIN-SUFFIX,makersuite.google.com,FireFly
+  - DOMAIN-SUFFIX,aistudio.google.com,FireFly
+  - DOMAIN-SUFFIX,generativelanguage.googleapis.com,FireFly
+  
+  # Perplexity 全套域名
+  - DOMAIN-SUFFIX,perplexity.ai,FireFly
+  - DOMAIN-SUFFIX,www.perplexity.ai,FireFly
+  - DOMAIN-SUFFIX,api.perplexity.ai,FireFly
+  - DOMAIN-SUFFIX,labs.perplexity.ai,FireFly
+  
+  # 其他 AI 服务
+  - DOMAIN-SUFFIX,azure.com,FireFly
+  - DOMAIN-SUFFIX,challenges.cloudflare.com,FireFly
+  - DOMAIN-SUFFIX,grok.com,FireFly
+  - DOMAIN-SUFFIX,bing.com,FireFly
+  
+  # 常见访问受限服务（2025版）
+  # 支付服务
+  - DOMAIN-SUFFIX,stripe.com,FireFly
+  - DOMAIN-SUFFIX,invoice.stripe.com,FireFly
+  - DOMAIN-SUFFIX,paypal.com,FireFly
+  
+  # 社交媒体和通讯
+  - DOMAIN-SUFFIX,twitter.com,FireFly
+  - DOMAIN-SUFFIX,x.com,FireFly
+  - DOMAIN-SUFFIX,t.co,FireFly
+  - DOMAIN-SUFFIX,facebook.com,FireFly
+  - DOMAIN-SUFFIX,instagram.com,FireFly
+  - DOMAIN-SUFFIX,whatsapp.com,FireFly
+  - DOMAIN-SUFFIX,discord.com,FireFly
+  - DOMAIN-SUFFIX,discordapp.com,FireFly
+  - DOMAIN-SUFFIX,reddit.com,FireFly
+  - DOMAIN-SUFFIX,linkedin.com,FireFly
+  
+  # 视频平台
+  - DOMAIN-SUFFIX,youtube.com,FireFly
+  - DOMAIN,youtubei.googleapis.com,FireFly
+  - DOMAIN,yt3.ggpht.com,FireFly
+  - DOMAIN-KEYWORD,youtube,FireFly
+  - DOMAIN-SUFFIX,twitch.tv,FireFly
+  - DOMAIN-SUFFIX,netflix.com,FireFly
+  - DOMAIN-SUFFIX,hulu.com,FireFly
+  
+  # 开发者和技术服务
+  - DOMAIN-SUFFIX,github.com,FireFly
+  - DOMAIN-SUFFIX,githubusercontent.com,FireFly
+  - DOMAIN-SUFFIX,gitlab.com,FireFly
+  - DOMAIN-SUFFIX,stackoverflow.com,FireFly
+  - DOMAIN-SUFFIX,medium.com,FireFly
+  - DOMAIN-SUFFIX,vercel.com,FireFly
+  - DOMAIN-SUFFIX,netlify.com,FireFly
+  - DOMAIN-SUFFIX,cloudflare.com,FireFly
+  
+  # 新闻和信息
+  - DOMAIN-SUFFIX,nytimes.com,FireFly
+  - DOMAIN-SUFFIX,wsj.com,FireFly
+  - DOMAIN-SUFFIX,bloomberg.com,FireFly
+  - DOMAIN-SUFFIX,reuters.com,FireFly
+  - DOMAIN-SUFFIX,bbc.com,FireFly
+  - DOMAIN-SUFFIX,cnn.com,FireFly
+  
+  # 所有未匹配上的域名走 FireFly
+  - MATCH,FireFly

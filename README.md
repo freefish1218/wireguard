@@ -1,18 +1,20 @@
-## Cloudflare WARP 旁路加速 ─ 最小可行配置（Client → **阿里云 VPS** → WARP）
+## Clash Verge Rev + WireGuard 智能代理配置
 
-> 目标：本地所有请求先进 **WireGuard 隧道** → 阿里云 VPS，再由 VPS 通过 **Cloudflare WARP** 出口，
-> 仅把 *Anthropic/Claude* 等域名代理到 WARP，其余流量直连，避免 403／丢包。
+> 目标：使用 **Clash Verge Rev** 作为客户端，通过 **WireGuard 协议** 连接阿里云 VPS，
+> 智能分流访问 *Claude/ChatGPT/Gemini* 等 AI 服务，国内网站直连，境外服务代理。
 
 ---
 
 ### ① Cloudflare Zero Trust 初始化（一次性）
+> 使用 wangcong.sh@gmail.com 登录
 
 | 步骤                            | 操作                                                                                                                                            |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1. 注册组织**                   | [https://one.dash.cloudflare.com](https://one.dash.cloudflare.com) → 取 **Team domain**，例 `mn-co`                                              |
 | **2. 开登录方式**                  | **Settings → Authentication → Login methods**：启用 **One-time PIN**                                                                             |
 | **3. 建 Device Enrollment 规则** | **Settings → WARP Client → Device enrollment → Add rule**<br>  • *Everyone*: **Allow**  • *Login method*: One-time PIN |
-| **4. 配 Split-Tunnel Include** | **Settings → WARP Client → Split tunnels** （Include 模式）<br>  `api.anthropic.com`  `console.anthropic.com`  `claude.ai`                        |
+| **4. 配置 Network** | **Settings → Network**：启用 **Fireware - Proxy**, 勾选 UDP & ICMP |
+| **5. 配 Split-Tunnel Include** | **Settings → WARP Client → Split tunnels** （Include 模式）<br>  `api.anthropic.com`  `console.anthropic.com`  `claude.ai`                        |
 
 ---
 
@@ -65,48 +67,56 @@ sudo systemctl restart wg-quick@wg0
 
 ---
 
-### ④ 本地客户端配置
+### ④ 本地 Clash Verge Rev 配置
 
-```ini
-# client.conf
-[Interface]
-Address = 192.168.100.2/24
-PrivateKey = …
+**使用 Clash Meta 内核原生 WireGuard 支持，无需系统 WireGuard 客户端**
 
-[Peer]
-PublicKey = <VPS_PUBKEY>
-Endpoint = <VPS_IP>:58888
-AllowedIPs = 0.0.0.0/0
-PersistentKeepalive = 25
-```
+1. **导入配置文件**：`config/Ben-wireguard.yaml`
+2. **切换内核**：设置 → Clash 设置 → `clash-meta`
+3. **启用 TUN 模式**：系统设置 → TUN（虚拟网卡）模式 → 开启
+4. **选择代理组**：代理选择 → WireGuard模式
+
+详细导入步骤参考：[`config/Clash-Verge-Rev-导入配置指南.md`](config/Clash-Verge-Rev-导入配置指南.md)
+
+---
+
+### ⑤ 验证配置
 
 ```bash
-wg-quick up client.conf
+# 检查代理是否工作（应显示 VPS IP）
+curl https://ip.sb
+
+# 测试 AI 服务访问
+ping claude.ai
+ping openai.com
+
+# 测试智能分流（国内网站应该直连）
+ping baidu.com
+
+# 浏览器验证
+# 访问 https://claude.ai 和 https://chatgpt.com 应正常加载
 ```
 
 ---
 
-### ⑤ 验证
+### 配置特性
 
-```bash
-# Claude/Anthropic 流量 → Cloudflare WARP
-# 结果应显示 warp=on
-curl -s https://claude.ai/cdn-cgi/trace | grep warp
+| 特性                    | 说明                                    |
+| --------------------- | ------------------------------------- |
+| **Clash Meta 原生 WireGuard** | 无需安装系统 WireGuard 客户端，Clash 内置支持        |
+| **智能 DNS 分流**           | fake-ip 模式 + 防污染，国内外 DNS 自动分流          |
+| **AI 服务完整覆盖**          | Claude/ChatGPT/Gemini/Perplexity 全支持  |
+| **自动规则更新**            | GeoSite/GeoIP 规则集自动更新，无需手动维护          |
+| **TUN 模式全覆盖**          | 系统级代理，支持所有应用和 UDP 流量               |
 
-# 其他网站保持直连
-# 返回阿里云公网 IP
-curl -s ifconfig.me
+### 文件结构
+
+```
+config/
+├── Ben-wireguard.yaml                    # Clash Verge Rev 主配置
+├── Clash-Verge-Rev-导入配置指南.md           # 详细使用指南
+├── wg0-client-optimized.conf             # WireGuard 备用配置（可选）
+└── warp_includes.md                      # 受限网站清单
 ```
 
----
-
-### 关键点回顾
-
-| 关键                       | 说明                                           |
-| ------------------------ | -------------------------------------------- |
-| **Split-Tunnel Include** | 只代理目标域名 → 带宽与稳定性双赢                           |
-| **Mode warp**            | VPS 默认全局 WARP，Include 规则自动生效                 |
-| **MASQUERADE 私网段**       | 避免 Include 排除后回包源地址异常                        |
-| **无需桌面 WARP**            | 浏览器复制深度链接 → `warp-cli registration token` 即可 |
-
-完成以上配置，WireGuard 客户端经阿里云 VPS 出口即可正常访问被 Cloudflare 403 的境外站点，而本地 SSH/WG 连接保持稳定、速度损耗最低。
+**使用 Clash Verge Rev 即可实现智能分流代理，访问所有受限 AI 服务，同时保持国内网站直连的最佳性能。** 🚀
